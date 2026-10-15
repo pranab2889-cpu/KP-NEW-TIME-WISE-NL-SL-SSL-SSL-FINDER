@@ -214,34 +214,80 @@ default_lat, default_lon = LOCATIONS_DB[selected_city]
 lat = st.sidebar.number_input("Latitude", value=default_lat, format="%.4f")
 lon = st.sidebar.number_input("Longitude", value=default_lon, format="%.4f")
 
-mode = st.sidebar.radio("Mode", ["Live Time", "Custom Time"])
+mode = st.sidebar.radio(
+    "Mode", ["Live Time", "Custom Time", "Track Full Day Schedule"]
+)
 
 target_dt = datetime.now()
-if mode == "Custom Time":
+if mode in ["Custom Time", "Track Full Day Schedule"]:
   d_val = st.sidebar.date_input("Date", datetime.now())
-  t_val = st.sidebar.time_input("Time", datetime.now().time())
-  target_dt = datetime.combine(d_val, t_val)
+  if mode == "Custom Time":
+    t_val = st.sidebar.time_input("Time", datetime.now().time())
+    target_dt = datetime.combine(d_val, t_val)
+  else:
+    target_dt = datetime.combine(d_val, datetime.min.time())
 
-moon_lon, moon_speed = get_swiss_moon_longitude(target_dt, lat, lon)
-res = calculate_kp_details(moon_lon, moon_speed)
+if mode != "Track Full Day Schedule":
+  moon_lon, moon_speed = get_swiss_moon_longitude(target_dt, lat, lon)
+  res = calculate_kp_details(moon_lon, moon_speed)
 
-st.markdown("### ⚡ PRESENT RUNNING LORDS")
-col1, col2, col3, col4 = st.columns(4)
-col1.metric("NL", res["NakshatraLord"])
-col2.metric("SL", res["SubLord"])
-col3.metric("SSL", res["SubSubLord"])
-col4.metric("SSSL", res["SubSubSubLord"])
+  st.markdown("### ⚡ PRESENT RUNNING LORDS")
+  col1, col2, col3, col4 = st.columns(4)
+  col1.metric("NL", res["NakshatraLord"])
+  col2.metric("SL", res["SubLord"])
+  col3.metric("SSL", res["SubSubLord"])
+  col4.metric("SSSL", res["SubSubSubLord"])
 
-st.markdown("---")
+  st.markdown("---")
 
-st.markdown(f"### 📋 Details for ({selected_city.title()})")
-st.write(
-    f"**Target Time:** {target_dt.strftime('%Y-%m-%d %I:%M:%S %p')}"
-)
-st.write(f"**Moon Longitude:** {res['Longitude']:.4f}°")
-st.write(f"**Moon Rashi:** {res['Rashi']}")
-st.write(f"**Nakshatra:** {res['Nakshatra']} ({res['NakshatraLord']})")
-st.write(f"**Sub-Lord (SL):** {res['SubLord']}")
-st.write(f"**Sub-Sub-Lord (SSL):** {res['SubSubLord']}")
-st.write(f"**Sub-Sub-Sub (SSSL):** {res['SubSubSubLord']}")
-st.write(f"**Remaining Time in Sub:** {res['RemainingHours']:.2f} hours")
+  st.markdown(f"### 📋 Details for ({selected_city.title()})")
+  st.write(
+      f"**Target Time:** {target_dt.strftime('%Y-%m-%d %I:%M:%S %p')}"
+  )
+  st.write(f"**Moon Longitude:** {res['Longitude']:.4f}°")
+  st.write(f"**Moon Rashi:** {res['Rashi']}")
+  st.write(f"**Nakshatra:** {res['Nakshatra']} ({res['NakshatraLord']})")
+  st.write(f"**Sub-Lord (SL):** {res['SubLord']}")
+  st.write(f"**Sub-Sub-Lord (SSL):** {res['SubSubLord']}")
+  st.write(f"**Sub-Sub-Sub (SSSL):** {res['SubSubSubLord']}")
+  st.write(f"**Remaining Time in Sub:** {res['RemainingHours']:.2f} hours")
+
+else:
+  st.markdown(
+      f"### ⚡ Full Day Schedule for {target_dt.strftime('%Y-%m-%d')}"
+      f" ({selected_city.title()})"
+  )
+  with st.spinner("Calculating transitions for the full day... Please wait."):
+    start_dt = target_dt
+    prev_rashi, prev_nak, prev_sl, prev_ssl, prev_sssl = "", "", "", "", ""
+    schedule_data = []
+
+    for minute_offset in range(0, 24 * 60, 2):
+      current_dt = start_dt + timedelta(minutes=minute_offset)
+      moon_lon, moon_speed = get_swiss_moon_longitude(current_dt, lat, lon)
+      res = calculate_kp_details(moon_lon, moon_speed)
+
+      if (
+          res["Rashi"] != prev_rashi
+          or res["Nakshatra"] != prev_nak
+          or res["SubLord"] != prev_sl
+          or res["SubSubLord"] != prev_ssl
+          or res["SubSubSubLord"] != prev_sssl
+      ):
+        schedule_data.append({
+            "Time": current_dt.strftime("%I:%M %p"),
+            "Rashi": res["Rashi"],
+            "Nakshatra & Lord": f"{res['Nakshatra']} ({res['NakshatraLord']})",
+            "SL": res["SubLord"],
+            "SSL": res["SubSubLord"],
+            "SSSL": res["SubSubSubLord"],
+        })
+        prev_rashi, prev_nak, prev_sl, prev_ssl, prev_sssl = (
+            res["Rashi"],
+            res["Nakshatra"],
+            res["SubLord"],
+            res["SubSubLord"],
+            res["SubSubSubLord"],
+        )
+
+    st.table(schedule_data)
