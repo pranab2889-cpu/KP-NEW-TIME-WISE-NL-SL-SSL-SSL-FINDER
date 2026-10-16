@@ -109,6 +109,8 @@ def get_swiss_moon_longitude(dt, lat, lon):
   flags = swe.FLG_SWIEPH + swe.FLG_SPEED + swe.FLG_SIDEREAL
   swe.set_topo(lon, lat, 0)
 
+  # আপনি যদি লোকাল টাইমে ইনপুট নেন, তবে টাইমজোন হ্যান্ডেলিং এখানে করতে হবে। 
+  # এখানে স্ট্যান্ডার্ড UTC কনভার্শন রাখা হয়েছে।
   tz_offset = 5.5
   utc_dt = dt - timedelta(hours=tz_offset)
 
@@ -134,12 +136,13 @@ def calculate_kp_details(moon_lon, moon_daily_speed=13.1768):
   rashi_index = int(lon / 30.0)
   rashi_name = RASHIS[rashi_index]
 
-  nak_span = 360.0 / 27.0
+  nak_span = 360.0 / 27.0  # 13° 20' = 13.333333°
   nak_index = int(lon / nak_span)
   nakshatra_name = NAKSHATRAS[nak_index]
   nakshatra_lord = LORDS_ORDER[nak_index % 9]
   deg_in_nak = lon - (nak_index * nak_span)
 
+  # Sub-Lord (SL) Calculation
   sub_cumulative = 0.0
   sub_lord = ""
   sub_span_deg = 0.0
@@ -149,13 +152,16 @@ def calculate_kp_details(moon_lon, moon_daily_speed=13.1768):
   for i in range(9):
     current_lord = LORDS_ORDER[(lord_start_idx + i) % 9]
     span = (LORD_YEARS[current_lord] / TOTAL_YEARS) * nak_span
-    sub_cumulative += span
-    if deg_in_nak <= sub_cumulative:
+    next_cumulative = sub_cumulative + span
+    
+    if deg_in_nak <= next_cumulative or i == 8:
       sub_lord = current_lord
       sub_span_deg = span
-      deg_in_sub = deg_in_nak - (sub_cumulative - span)
+      deg_in_sub = deg_in_nak - sub_cumulative
       break
+    sub_cumulative = next_cumulative
 
+  # Sub-Sub-Lord (SSL) Calculation
   ssl_cumulative = 0.0
   sub_sub_lord = ""
   ssl_span_deg = 0.0
@@ -165,13 +171,16 @@ def calculate_kp_details(moon_lon, moon_daily_speed=13.1768):
   for i in range(9):
     current_ssl = LORDS_ORDER[(ssl_start_idx + i) % 9]
     ssl_span = (LORD_YEARS[current_ssl] / TOTAL_YEARS) * sub_span_deg
-    ssl_cumulative += ssl_span
-    if deg_in_sub <= ssl_cumulative:
+    next_ssl_cum = ssl_cumulative + ssl_span
+
+    if deg_in_sub <= next_ssl_cum or i == 8:
       sub_sub_lord = current_ssl
       ssl_span_deg = ssl_span
-      deg_in_ssl = deg_in_sub - (ssl_cumulative - ssl_span)
+      deg_in_ssl = deg_in_sub - ssl_cumulative
       break
+    ssl_cumulative = next_ssl_cum
 
+  # Sub-Sub-Sub-Lord (SSSL) Calculation
   sssl_cumulative = 0.0
   sub_sub_sub_lord = ""
   sssl_start_idx = LORDS_ORDER.index(sub_sub_lord)
@@ -179,10 +188,12 @@ def calculate_kp_details(moon_lon, moon_daily_speed=13.1768):
   for i in range(9):
     current_sssl = LORDS_ORDER[(sssl_start_idx + i) % 9]
     sssl_span = (LORD_YEARS[current_sssl] / TOTAL_YEARS) * ssl_span_deg
-    sssl_cumulative += sssl_span
-    if deg_in_ssl <= sssl_cumulative:
+    next_sssl_cum = sssl_cumulative + sssl_span
+
+    if deg_in_ssl <= next_sssl_cum or i == 8:
       sub_sub_sub_lord = current_sssl
       break
+    sssl_cumulative = next_sssl_cum
 
   remaining_deg_in_sub = sub_span_deg - deg_in_sub
   rem_hours = (remaining_deg_in_sub / moon_daily_speed) * 24
@@ -229,7 +240,7 @@ if mode in ["Custom Time", "Track Full Day Schedule"]:
 
 if mode != "Track Full Day Schedule":
   moon_lon, moon_speed = get_swiss_moon_longitude(target_dt, lat, lon)
-  res = calculate_kp_details(moon_lon, moon_speed)
+  res = calculate_kpdetails(moon_lon, moon_speed)
 
   st.markdown("### ⚡ PRESENT RUNNING LORDS")
   col1, col2, col3, col4 = st.columns(4)
@@ -265,7 +276,7 @@ else:
     for minute_offset in range(0, 24 * 60, 2):
       current_dt = start_dt + timedelta(minutes=minute_offset)
       moon_lon, moon_speed = get_swiss_moon_longitude(current_dt, lat, lon)
-      res = calculate_kp_details(moon_lon, moon_speed)
+      res = calculate_kpdetails(moon_lon, moon_speed)
 
       if (
           res["Rashi"] != prev_rashi
