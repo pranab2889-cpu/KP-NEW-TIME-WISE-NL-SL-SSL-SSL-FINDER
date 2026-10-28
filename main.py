@@ -1,7 +1,6 @@
 from datetime import datetime, timedelta
 import math
-import tkinter as tk
-from tkinter import messagebox, ttk
+import streamlit as st
 
 try:
   import pysweph as swe
@@ -196,444 +195,63 @@ def calculate_kp_details(moon_lon, moon_daily_speed=13.1768):
   }
 
 
-class KPMoonApp:
+def main():
+  st.set_page_config(
+      page_title="KP Moon & Rashi Tracker", layout="centered", initial_sidebar_state="expanded"
+  )
 
-  def __init__(self, root):
-    self.root = root
-    self.root.title(
-        "KP Moon Live & Rashi Tracker (Swiss Ephemeris - KP New & True Node)"
-    )
-    self.root.geometry("860x920")
-    self.root.config(bg="#f4f6f9")
+  st.title("🌟 KP True Node & New Ayanamsa Tracker 🌟")
 
-    self.current_mode = "live"
+  st.sidebar.header("📍 Location & Time Settings")
 
-    title_label = tk.Label(
-        root,
-        text="🌟 KP True Node & New Ayanamsa Tracker 🌟",
-        font=("Arial", 14, "bold"),
-        bg="#f4f6f9",
-        fg="#0056b3",
-    )
-    title_label.pack(pady=5)
+  city_list = [city.title() for city in LOCATIONS_DB.keys()]
+  selected_city = st.sidebar.selectbox("Select Location", city_list, index=0)
 
-    highlight_frame = tk.Frame(root, bg="#1e1e2f", bd=2, relief="ridge")
-    highlight_frame.pack(fill="x", padx=15, pady=5)
+  default_lat, default_lon = LOCATIONS_DB[selected_city.lower()]
 
-    tk.Label(
-        highlight_frame,
-        text="⚡ PRESENT RUNNING LORDS (LIVE) ⚡",
-        font=("Arial", 10, "bold"),
-        bg="#1e1e2f",
-        fg="#ffc107",
-    ).pack(pady=3)
+  lat = st.sidebar.number_input("Latitude", value=default_lat, format="%.4f")
+  lon_val = st.sidebar.number_input("Longitude", value=default_lon, format="%.4f")
 
-    lords_card_sub = tk.Frame(highlight_frame, bg="#1e1e2f")
-    lords_card_sub.pack(pady=5, padx=10, fill="x")
+  target_date = st.sidebar.date_input("Date", value=datetime.now().date())
+  target_time = st.sidebar.time_input("Time", value=datetime.now().time())
 
-    self.nl_val_lbl = tk.Label(
-        lords_card_sub,
-        text="NL: --",
-        font=("Consolas", 11, "bold"),
-        bg="#282a36",
-        fg="#50fa7b",
-        padx=10,
-        pady=5,
-    )
-    self.nl_val_lbl.grid(row=0, column=0, padx=5, sticky="ew")
+  target_dt = datetime.combine(target_date, target_time)
 
-    self.sl_val_lbl = tk.Label(
-        lords_card_sub,
-        text="SL: --",
-        font=("Consolas", 11, "bold"),
-        bg="#282a36",
-        fg="#8be9fd",
-        padx=10,
-        pady=5,
-    )
-    self.sl_val_lbl.grid(row=0, column=1, padx=5, sticky="ew")
+  mode = st.sidebar.radio(
+      "Select Mode", ["Live / Custom Time Details", "Full Day Schedule Tracker"]
+  )
 
-    self.ssl_val_lbl = tk.Label(
-        lords_card_sub,
-        text="SSL: --",
-        font=("Consolas", 11, "bold"),
-        bg="#282a36",
-        fg="#ffb86c",
-        padx=10,
-        pady=5,
-    )
-    self.ssl_val_lbl.grid(row=0, column=2, padx=5, sticky="ew")
+  try:
+    moon_lon, moon_speed = get_swiss_moon_longitude(target_dt, lat, lon_val)
+    res = calculate_kp_details(moon_lon, moon_speed)
 
-    self.sssl_val_lbl = tk.Label(
-        lords_card_sub,
-        text="SSSL: --",
-        font=("Consolas", 11, "bold"),
-        bg="#282a36",
-        fg="#ff79c6",
-        padx=10,
-        pady=5,
-    )
-    self.sssl_val_lbl.grid(row=0, column=3, padx=5, sticky="ew")
+    # Highlight box for running lords
+    st.markdown("### ⚡ PRESENT RUNNING LORDS ⚡")
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("NL", res["NakshatraLord"])
+    col2.metric("SL", res["SubLord"])
+    col3.metric("SSL", res["SubSubLord"])
+    col4.metric("SSSL", res["SubSubSubLord"])
 
-    lords_card_sub.grid_columnconfigure(0, weight=1)
-    lords_card_sub.grid_columnconfigure(1, weight=1)
-    lords_card_sub.grid_columnconfigure(2, weight=1)
-    lords_card_sub.grid_columnconfigure(3, weight=1)
+    st.markdown("---")
 
-    input_frame = tk.Frame(root, bg="#ffffff", bd=2, relief="groove")
-    input_frame.pack(pady=5, padx=15, fill="x")
+    if mode == "Live / Custom Time Details":
+      st.subheader(f"📊 Details for {selected_city}")
+      st.write(f"**Target Time:** {target_dt.strftime('%Y-%m-%d %I:%M:%S %p')}")
+      st.write(f"**Moon Longitude:** {res['Longitude']:.4f}°")
+      st.write(f"**Moon Rashi:** {res['Rashi']}")
+      st.write(f"**Nakshatra:** {res['Nakshatra']} ({res['NakshatraLord']})")
+      st.write(f"**Sub-Lord (SL):** {res['SubLord']}")
+      st.write(f"**Sub-Sub-Lord (SSL):** {res['SubSubLord']}")
+      st.write(f"**Sub-Sub-Sub (SSSL):** {res['SubSubSubLord']}")
+      st.write(f"**Remaining Time:** {res['RemainingHours']:.2f} hours")
 
-    tk.Label(
-        input_frame,
-        text="Location Name:",
-        font=("Arial", 9, "bold"),
-        bg="#ffffff",
-        fg="#333333",
-    ).grid(row=0, column=0, sticky="w", padx=10, pady=4)
-    display_cities = [city.title() for city in LOCATIONS_DB.keys()]
-    self.loc_combo = ttk.Combobox(
-        input_frame, values=display_cities, font=("Arial", 9), width=16
-    )
-    self.loc_combo.grid(row=0, column=1, columnspan=3, padx=10, pady=4, sticky="w")
-    self.loc_combo.set("Suri")
-    self.loc_combo.bind("<<ComboboxSelected>>", self.update_coordinates)
-    self.loc_combo.bind("<KeyRelease>", self.update_coordinates)
-
-    tk.Label(
-        input_frame,
-        text="Latitude:",
-        font=("Arial", 9, "bold"),
-        bg="#ffffff",
-        fg="#333333",
-    ).grid(row=1, column=0, sticky="w", padx=10, pady=4)
-    self.lat_entry = tk.Entry(
-        input_frame, font=("Arial", 9), width=16, bg="#f9f9f9"
-    )
-    self.lat_entry.grid(row=1, column=1, padx=10, pady=4, sticky="w")
-    self.lat_entry.insert(0, "23.9167")
-
-    tk.Label(
-        input_frame,
-        text="Longitude:",
-        font=("Arial", 9, "bold"),
-        bg="#ffffff",
-        fg="#333333",
-    ).grid(row=2, column=0, sticky="w", padx=10, pady=4)
-    self.lon_entry = tk.Entry(
-        input_frame, font=("Arial", 9), width=16, bg="#f9f9f9"
-    )
-    self.lon_entry.grid(row=2, column=1, padx=10, pady=4, sticky="w")
-    self.lon_entry.insert(0, "87.5333")
-
-    tk.Label(
-        input_frame,
-        text="Date (YYYY-MM-DD):",
-        font=("Arial", 9, "bold"),
-        bg="#ffffff",
-        fg="#333333",
-    ).grid(row=3, column=0, sticky="w", padx=10, pady=4)
-    self.date_entry = tk.Entry(
-        input_frame, font=("Arial", 9), width=16, bg="#f9f9f9"
-    )
-    self.date_entry.grid(row=3, column=1, padx=10, pady=4, sticky="w")
-    self.date_entry.insert(0, datetime.now().strftime("%Y-%m-%d"))
-
-    tk.Label(
-        input_frame,
-        text="Time (HH:MM):",
-        font=("Arial", 9, "bold"),
-        bg="#ffffff",
-        fg="#333333",
-    ).grid(row=4, column=0, sticky="w", padx=10, pady=4)
-
-    time_sub_frame = tk.Frame(input_frame, bg="#ffffff")
-    time_sub_frame.grid(row=4, column=1, padx=5, pady=4, sticky="w")
-
-    self.hour_entry = tk.Entry(
-        time_sub_frame, font=("Arial", 9), width=3, justify="center"
-    )
-    self.hour_entry.pack(side="left")
-    self.hour_entry.insert(0, datetime.now().strftime("%I"))
-
-    tk.Label(time_sub_frame, text=":", font=("Arial", 10, "bold"), bg="#ffffff").pack(
-        side="left"
-    )
-
-    self.min_entry = tk.Entry(
-        time_sub_frame, font=("Arial", 9), width=3, justify="center"
-    )
-    self.min_entry.pack(side="left")
-    self.min_entry.insert(0, datetime.now().strftime("%M"))
-
-    self.ampm_combo = ttk.Combobox(
-        input_frame, values=["AM", "PM"], font=("Arial", 9), width=5
-    )
-    self.ampm_combo.grid(row=4, column=2, padx=2, pady=4, sticky="w")
-    self.ampm_combo.set(datetime.now().strftime("%p"))
-
-    self.status_var = tk.StringVar(value="🟢 Live Mode Active")
-    status_label = tk.Label(
-        input_frame,
-        textvariable=self.status_var,
-        font=("Arial", 9, "bold"),
-        bg="#ffffff",
-        fg="#28a745",
-    )
-    status_label.grid(row=4, column=3, padx=5, pady=4, sticky="w")
-
-    btn_frame = tk.Frame(root, bg="#f4f6f9")
-    btn_frame.pack(pady=5)
-
-    calc_btn = tk.Button(
-        btn_frame,
-        text="🔍 Check Live",
-        font=("Arial", 9, "bold"),
-        bg="#007bff",
-        fg="white",
-        padx=6,
-        pady=4,
-        command=self.calculate_live,
-    )
-    calc_btn.grid(row=0, column=0, padx=5)
-
-    custom_btn = tk.Button(
-        btn_frame,
-        text="🎯 Check Custom Time",
-        font=("Arial", 9, "bold"),
-        bg="#ff8c00",
-        fg="white",
-        padx=6,
-        pady=4,
-        command=self.calculate_custom_time,
-    )
-    custom_btn.grid(row=0, column=1, padx=5)
-
-    sched_btn = tk.Button(
-        btn_frame,
-        text="⚡ Track Full Day Schedule",
-        font=("Arial", 9, "bold"),
-        bg="#28a745",
-        fg="white",
-        padx=6,
-        pady=4,
-        command=self.generate_transitions,
-    )
-    sched_btn.grid(row=0, column=2, padx=5)
-
-    output_frame = tk.Frame(root, bg="#ffffff", bd=2, relief="groove")
-    output_frame.pack(fill="both", expand=True, padx=15, pady=5)
-
-    self.text_area = tk.Text(
-        output_frame,
-        font=("Consolas", 9),
-        bg="#ffffff",
-        fg="#111111",
-        insertbackground="black",
-        wrap="word",
-    )
-    scrollbar = tk.Scrollbar(output_frame, command=self.text_area.yview)
-    self.text_area.configure(yscrollcommand=scrollbar.set)
-
-    self.text_area.pack(side="left", fill="both", expand=True)
-    scrollbar.pack(side="right", fill="y")
-
-    self.text_area.tag_config(
-        "header", foreground="#d9534f", font=("Consolas", 10, "bold")
-    )
-    self.text_area.tag_config(
-        "time", foreground="#0275d8", font=("Consolas", 9, "bold")
-    )
-    self.text_area.tag_config("nak", foreground="#292b2c", font=("Consolas", 9))
-    self.text_area.tag_config(
-        "rashi", foreground="#d9534f", font=("Consolas", 9, "bold")
-    )
-    self.text_area.tag_config("lord", foreground="#6f42c1", font=("Consolas", 9))
-    self.text_area.tag_config(
-        "sl", foreground="#0275d8", font=("Consolas", 9, "bold")
-    )
-    self.text_area.tag_config("ssl", foreground="#f0ad4e", font=("Consolas", 9))
-    self.text_area.tag_config("sssl", foreground="#5cb85c", font=("Consolas", 9))
-    self.text_area.tag_config(
-        "highlight",
-        foreground="#ffffff",
-        background="#d9534f",
-        font=("Consolas", 9, "bold"),
-    )
-
-    self.auto_refresh_loop()
-
-  def update_coordinates(self, event=None):
-    typed_city = self.loc_combo.get().strip().lower()
-    if typed_city in LOCATIONS_DB:
-      lat, lon = LOCATIONS_DB[typed_city]
-      self.lat_entry.delete(0, tk.END)
-      self.lat_entry.insert(0, str(lat))
-      self.lon_entry.delete(0, tk.END)
-      self.lon_entry.insert(0, str(lon))
-
-  def calculate_live(self):
-    self.current_mode = "live"
-    self.status_var.set("🟢 Live Mode Active")
-    self.update_coordinates()
-    loc_name = self.loc_combo.get().strip()
-    try:
-      target_dt = datetime.now()
-      lat = float(self.lat_entry.get().strip())
-      lon_val = float(self.lon_entry.get().strip())
-
-      moon_lon, moon_speed = get_swiss_moon_longitude(target_dt, lat, lon_val)
-      res = calculate_kp_details(moon_lon, moon_speed)
-
-      self.nl_val_lbl.config(text=f"NL: {res['NakshatraLord']}")
-      self.sl_val_lbl.config(text=f"SL: {res['SubLord']}")
-      self.ssl_val_lbl.config(text=f"SSL: {res['SubSubLord']}")
-      self.sssl_val_lbl.config(text=f"SSSL: {res['SubSubSubLord']}")
-
-      self.text_area.delete("1.0", tk.END)
-      self.text_area.insert(
-          tk.END,
-          f"=== LIVE CURRENT TIME DETAILS ({loc_name}) [KP New / Swiss]"
-          f" ===\n\n",
-          "header",
+    else:
+      st.subheader(
+          f"⚡ Full Day Schedule for {target_date.strftime('%Y-%m-%d')} ({selected_city})"
       )
-      self.text_area.insert(
-          tk.END,
-          f"Live Time        : {target_dt.strftime('%Y-%m-%d %I:%M:%S %p')}\n",
-          "time",
-      )
-      self.text_area.insert(
-          tk.END, f"Moon Longitude   : {res['Longitude']:.4f}°\n", "nak"
-      )
-      self.text_area.insert(
-          tk.END, f"Moon Rashi       : {res['Rashi']}\n\n", "rashi"
-      )
-      self.text_area.insert(
-          tk.END,
-          f"Nakshatra        : {res['Nakshatra']} ({res['NakshatraLord']})\n",
-          "nak",
-      )
-      self.text_area.insert(
-          tk.END, f"Nakshatra Lord   : {res['NakshatraLord']}\n", "lord"
-      )
-      self.text_area.insert(
-          tk.END, f"Sub-Lord (SL)    : {res['SubLord']}\n", "sl"
-      )
-      self.text_area.insert(
-          tk.END, f"Sub-Sub-Lord     : {res['SubSubLord']}\n", "ssl"
-      )
-      self.text_area.insert(
-          tk.END, f"Sub-Sub-Sub (SSSL): {res['SubSubSubLord']}\n\n", "sssl"
-      )
-      self.text_area.insert(
-          tk.END, f"Remaining Time   : {res['RemainingHours']:.2f} hours\n", "time"
-      )
-    except Exception as e:
-      messagebox.showerror("Error", f"Somoshya hoyeche: {str(e)}")
-
-  def calculate_custom_time(self):
-    self.current_mode = "custom"
-    self.status_var.set("🎯 Custom Time Mode")
-    self.update_coordinates()
-    loc_name = self.loc_combo.get().strip()
-    d_str = self.date_entry.get().strip()
-
-    try:
-      h_str = self.hour_entry.get().strip().zfill(2)
-      m_str = self.min_entry.get().strip().zfill(2)
-      t_str = f"{h_str}:{m_str}:00"
-      ampm_val = self.ampm_combo.get().strip()
-
-      target_dt = datetime.strptime(
-          f"{d_str} {t_str} {ampm_val}", "%Y-%m-%d %I:%M:%S %p"
-      )
-      lat = float(self.lat_entry.get().strip())
-      lon_val = float(self.lon_entry.get().strip())
-
-      moon_lon, moon_speed = get_swiss_moon_longitude(target_dt, lat, lon_val)
-      res = calculate_kp_details(moon_lon, moon_speed)
-
-      self.nl_val_lbl.config(text=f"NL: {res['NakshatraLord']}")
-      self.sl_val_lbl.config(text=f"SL: {res['SubLord']}")
-      self.ssl_val_lbl.config(text=f"SSL: {res['SubSubLord']}")
-      self.sssl_val_lbl.config(text=f"SSSL: {res['SubSubSubLord']}")
-
-      self.text_area.delete("1.0", tk.END)
-      self.text_area.insert(
-          tk.END,
-          f"=== CUSTOM TIME DETAILS ({loc_name}) [KP New / Swiss]"
-          f" ===\n\n",
-          "header",
-      )
-      self.text_area.insert(
-          tk.END,
-          f"Target Time      : {target_dt.strftime('%Y-%m-%d %I:%M:%S %p')}\n",
-          "time",
-      )
-      self.text_area.insert(
-          tk.END, f"Moon Longitude   : {res['Longitude']:.4f}°\n", "nak"
-      )
-      self.text_area.insert(
-          tk.END, f"Moon Rashi       : {res['Rashi']}\n\n", "rashi"
-      )
-      self.text_area.insert(
-          tk.END,
-          f"Nakshatra        : {res['Nakshatra']} ({res['NakshatraLord']})\n",
-          "nak",
-      )
-      self.text_area.insert(
-          tk.END, f"Nakshatra Lord   : {res['NakshatraLord']}\n", "lord"
-      )
-      self.text_area.insert(
-          tk.END, f"Sub-Lord (SL)    : {res['SubLord']}\n", "sl"
-      )
-      self.text_area.insert(
-          tk.END, f"Sub-Sub-Lord     : {res['SubSubLord']}\n", "ssl"
-      )
-      self.text_area.insert(
-          tk.END, f"Sub-Sub-Sub (SSSL): {res['SubSubSubLord']}\n\n", "sssl"
-      )
-      self.text_area.insert(
-          tk.END, f"Remaining Time   : {res['RemainingHours']:.2f} hours\n", "time"
-      )
-    except Exception as e:
-      messagebox.showerror(
-          "Error",
-          f"Sothik format-e Hour, Minute ebong AM/PM select korun!"
-          f" ({str(e)})",
-      )
-
-  def generate_transitions(self):
-    self.current_mode = "schedule"
-    self.status_var.set("⏸️ Schedule Mode (Static)")
-    self.update_coordinates()
-    loc_name = self.loc_combo.get().strip()
-    d_str = self.date_entry.get().strip()
-
-    try:
-      lat = float(self.lat_entry.get().strip())
-      lon_val = float(self.lon_entry.get().strip())
-
-      start_dt = datetime.strptime(f"{d_str} 00:00", "%Y-%m-%d %H:%M")
+      start_dt = datetime.combine(target_date, datetime.min.time())
       current_real_time = datetime.now()
-
-      curr_moon_lon, curr_moon_speed = get_swiss_moon_longitude(
-          current_real_time, lat, lon_val
-      )
-      curr_res = calculate_kp_details(curr_moon_lon, curr_moon_speed)
-      self.nl_val_lbl.config(text=f"NL: {curr_res['NakshatraLord']}")
-      self.sl_val_lbl.config(text=f"SL: {curr_res['SubLord']}")
-      self.ssl_val_lbl.config(text=f"SSL: {curr_res['SubSubLord']}")
-      self.sssl_val_lbl.config(text=f"SSSL: {curr_res['SubSubSubLord']}")
-
-      self.text_area.delete("1.0", tk.END)
-      self.text_area.insert(
-          tk.END,
-          f"=== FULL DAY SCHEDULE FOR {d_str} ({loc_name}) [Swiss] ===\n\n",
-          "header",
-      )
-      header_str = f"{'MARK':<4} | {'TIME':<10} | {'RASHI':<16} | {'NAKSHATRA & LORD':<22} | {'SL':<7} | {'SSL':<7} | {'SSSL':<7}\n"
-      self.text_area.insert(tk.END, header_str, "time")
-      self.text_area.insert(tk.END, "-" * 98 + "\n", "nak")
 
       prev_rashi = ""
       prev_nak = ""
@@ -641,81 +259,42 @@ class KPMoonApp:
       prev_ssl = ""
       prev_sssl = ""
 
-      transitions_list = []
+      schedule_data = []
 
       for minute_offset in range(0, 24 * 60, 2):
         current_dt = start_dt + timedelta(minutes=minute_offset)
-        moon_lon, moon_speed = get_swiss_moon_longitude(
-            current_dt, lat, lon_val
-        )
-        res = calculate_kp_details(moon_lon, moon_speed)
-
-        curr_rashi = res["Rashi"]
-        curr_nak = res["Nakshatra"]
-        curr_nl = res["NakshatraLord"]
-        curr_sl = res["SubLord"]
-        curr_ssl = res["SubSubLord"]
-        curr_sssl = res["SubSubSubLord"]
+        m_lon, m_speed = get_swiss_moon_longitude(current_dt, lat, lon_val)
+        c_res = calculate_kp_details(m_lon, m_speed)
 
         if (
-            curr_rashi != prev_rashi
-            or curr_nak != prev_nak
-            or curr_sl != prev_sl
-            or curr_ssl != prev_ssl
-            or curr_sssl != prev_sssl
+            c_res["Rashi"] != prev_rashi
+            or c_res["Nakshatra"] != prev_nak
+            or c_res["SubLord"] != prev_sl
+            or c_res["SubSubLord"] != prev_ssl
+            or c_res["SubSubSubLord"] != prev_sssl
         ):
-          transitions_list.append(
-              (
-                  current_dt,
-                  curr_rashi,
-                  curr_nak,
-                  curr_nl,
-                  curr_sl,
-                  curr_ssl,
-                  curr_sssl,
-              )
-          )
-          prev_rashi = curr_rashi
-          prev_nak = curr_nak
-          prev_sl = curr_sl
-          prev_ssl = curr_ssl
-          prev_sssl = curr_sssl
+          schedule_data.append({
+              "Time": current_dt.strftime("%I:%M %p"),
+              "Rashi": c_res["Rashi"],
+              "Nakshatra & Lord": f"{c_res['Nakshatra']} ({c_res['NakshatraLord']})",
+              "SL": c_res["SubLord"],
+              "SSL": c_res["SubSubLord"],
+              "SSSL": c_res["SubSubSubLord"],
+          })
+          prev_rashi = c_res["Rashi"]
+          prev_nak = c_res["Nakshatra"]
+          prev_sl = c_res["SubLord"]
+          prev_ssl = c_res["SubSubLord"]
+          prev_sssl = c_res["SubSubSubLord"]
 
-      for i, trans in enumerate(transitions_list):
-        t_dt, c_rashi, c_nak, c_nl, c_sl, c_ssl, c_sssl = trans
-        time_str = t_dt.strftime("%I:%M %p")
-        nak_with_lord = f"{c_nak} ({c_nl})"
+      import pandas as pd
 
-        is_current = False
-        if i < len(transitions_list) - 1:
-          if t_dt <= current_real_time < transitions_list[i + 1][0]:
-            is_current = True
-        else:
-          if current_real_time >= t_dt:
-            is_current = True
+      df = pd.DataFrame(schedule_data)
+      st.dataframe(df, use_container_width=True)
 
-        mark = "==>" if is_current else "   "
-        tag_to_use = "highlight" if is_current else "nak"
-
-        row_str = (
-            f"{mark:<4} | {time_str:<10} | {c_rashi:<16} |"
-            f" {nak_with_lord:<22} | {c_sl:<7} | {c_ssl:<7} | {c_sssl:<7}\n"
-        )
-        self.text_area.insert(tk.END, row_str, tag_to_use)
-
-    except Exception as e:
-      messagebox.showerror("Error", f"Somoshya hoyeche: {str(e)}")
-
-  def auto_refresh_loop(self):
-    try:
-      if self.current_mode == "live":
-        self.calculate_live()
-    except Exception:
-      pass
-    self.root.after(5000, self.auto_refresh_loop)
+  except Exception as e:
+    st.error(f"Somoshya hoyeche: {str(e)}")
 
 
 if __name__ == "__main__":
-  root = tk.Tk()
-  app = KPMoonApp(root)
-  root.mainloop()
+  main()
