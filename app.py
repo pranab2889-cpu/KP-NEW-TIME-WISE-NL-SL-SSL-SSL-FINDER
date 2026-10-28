@@ -126,7 +126,6 @@ def get_swiss_moon_longitude(dt, lat, lon):
 
 def calculate_kp_details(moon_lon, moon_daily_speed=13.1768):
   lon = moon_lon % 360
-
   rashi_index = int(lon / 30.0)
   rashi_name = RASHIS[rashi_index]
 
@@ -195,37 +194,81 @@ def calculate_kp_details(moon_lon, moon_daily_speed=13.1768):
   }
 
 
-def main():
-  st.set_page_config(
-      page_title="KP Moon & Rashi Tracker", layout="centered", initial_sidebar_state="expanded"
+st.set_page_config(
+    page_title="KP Moon Live & Rashi Tracker", page_icon="🌟", layout="wide"
+)
+
+st.title("🌟 KP True Node & New Ayanamsa Tracker 🌟")
+
+st.sidebar.header("Location & Time Settings")
+display_cities = [city.title() for city in LOCATIONS_DB.keys()]
+selected_city = st.sidebar.selectbox("Location Name", display_cities, index=0)
+
+default_lat, default_lon = LOCATIONS_DB[selected_city.lower()]
+lat = st.sidebar.number_input("Latitude", value=default_lat, format="%.4f")
+lon_val = st.sidebar.number_input(
+    "Longitude", value=default_lon, format="%.4f"
+)
+
+mode = st.sidebar.radio(
+    "Select Mode", ["Live Now", "Custom Time", "Full Day Schedule"]
+)
+
+target_dt = datetime.now()
+if mode == "Custom Time":
+  d_val = st.sidebar.date_input("Date", datetime.now())
+  t_val = st.sidebar.time_input("Time", datetime.now().time())
+  target_dt = datetime.combine(d_val, t_val)
+elif mode == "Full Day Schedule":
+  d_val = st.sidebar.date_input(
+      "Schedule Date", datetime.now(), key="sched_date"
   )
+  target_dt = datetime.combine(d_val, datetime.min.time())
 
-  st.title("🌟 KP True Node & New Ayanamsa Tracker 🌟")
+try:
+  if mode == "Full Day Schedule":
+    st.subheader(f"Full Day Schedule for {d_val} ({selected_city})")
+    start_dt = datetime.combine(d_val, datetime.min.time())
+    current_real_time = datetime.now()
 
-  st.sidebar.header("📍 Location & Time Settings")
+    transitions_list = []
+    prev_rashi, prev_nak, prev_sl, prev_ssl, prev_sssl = "", "", "", "", ""
 
-  city_list = [city.title() for city in LOCATIONS_DB.keys()]
-  selected_city = st.sidebar.selectbox("Select Location", city_list, index=0)
+    for minute_offset in range(0, 24 * 60, 5):
+      current_dt = start_dt + timedelta(minutes=minute_offset)
+      moon_lon, moon_speed = get_swiss_moon_longitude(
+          current_dt, lat, lon_val
+      )
+      res = calculate_kp_details(moon_lon, moon_speed)
 
-  default_lat, default_lon = LOCATIONS_DB[selected_city.lower()]
+      if (
+          res["Rashi"] != prev_rashi
+          or res["Nakshatra"] != prev_nak
+          or res["SubLord"] != prev_sl
+          or res["SubSubLord"] != prev_ssl
+          or res["SubSubSubLord"] != prev_sssl
+      ):
+        transitions_list.append((current_dt, res))
+        prev_rashi, prev_nak, prev_sl, prev_ssl, prev_sssl = (
+            res["Rashi"],
+            res["Nakshatra"],
+            res["SubLord"],
+            res["SubSubLord"],
+            res["SubSubSubLord"],
+        )
 
-  lat = st.sidebar.number_input("Latitude", value=default_lat, format="%.4f")
-  lon_val = st.sidebar.number_input("Longitude", value=default_lon, format="%.4f")
+    for t_dt, res in transitions_list:
+      time_str = t_dt.strftime("%I:%M %p")
+      st.markdown(
+          f"- **{time_str}** | Rashi: `{res['Rashi']}` | Nakshatra:"
+          f" `{res['Nakshatra']} ({res['NakshatraLord']})` | SL: `{res['SubLord']}`"
+          f" | SSL: `{res['SubSubLord']}` | SSSL: `{res['SubSubSubLord']}`"
+      )
 
-  target_date = st.sidebar.date_input("Date", value=datetime.now().date())
-  target_time = st.sidebar.time_input("Time", value=datetime.now().time())
-
-  target_dt = datetime.combine(target_date, target_time)
-
-  mode = st.sidebar.radio(
-      "Select Mode", ["Live / Custom Time Details", "Full Day Schedule Tracker"]
-  )
-
-  try:
+  else:
     moon_lon, moon_speed = get_swiss_moon_longitude(target_dt, lat, lon_val)
     res = calculate_kp_details(moon_lon, moon_speed)
 
-    # Highlight box for running lords
     st.markdown("### ⚡ PRESENT RUNNING LORDS ⚡")
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("NL", res["NakshatraLord"])
@@ -233,68 +276,14 @@ def main():
     col3.metric("SSL", res["SubSubLord"])
     col4.metric("SSSL", res["SubSubSubLord"])
 
-    st.markdown("---")
+    st.divider()
+    st.write(
+        f"**Target Time:** {target_dt.strftime('%Y-%m-%d %I:%M:%S %p')}"
+    )
+    st.write(f"**Moon Longitude:** {res['Longitude']:.4f}°")
+    st.write(f"**Moon Rashi:** {res['Rashi']}")
+    st.write(f"**Nakshatra:** {res['Nakshatra']} ({res['NakshatraLord']})")
+    st.write(f"**Remaining Time in Sub:** {res['RemainingHours']:.2f} hours")
 
-    if mode == "Live / Custom Time Details":
-      st.subheader(f"📊 Details for {selected_city}")
-      st.write(f"**Target Time:** {target_dt.strftime('%Y-%m-%d %I:%M:%S %p')}")
-      st.write(f"**Moon Longitude:** {res['Longitude']:.4f}°")
-      st.write(f"**Moon Rashi:** {res['Rashi']}")
-      st.write(f"**Nakshatra:** {res['Nakshatra']} ({res['NakshatraLord']})")
-      st.write(f"**Sub-Lord (SL):** {res['SubLord']}")
-      st.write(f"**Sub-Sub-Lord (SSL):** {res['SubSubLord']}")
-      st.write(f"**Sub-Sub-Sub (SSSL):** {res['SubSubSubLord']}")
-      st.write(f"**Remaining Time:** {res['RemainingHours']:.2f} hours")
-
-    else:
-      st.subheader(
-          f"⚡ Full Day Schedule for {target_date.strftime('%Y-%m-%d')} ({selected_city})"
-      )
-      start_dt = datetime.combine(target_date, datetime.min.time())
-      current_real_time = datetime.now()
-
-      prev_rashi = ""
-      prev_nak = ""
-      prev_sl = ""
-      prev_ssl = ""
-      prev_sssl = ""
-
-      schedule_data = []
-
-      for minute_offset in range(0, 24 * 60, 2):
-        current_dt = start_dt + timedelta(minutes=minute_offset)
-        m_lon, m_speed = get_swiss_moon_longitude(current_dt, lat, lon_val)
-        c_res = calculate_kp_details(m_lon, m_speed)
-
-        if (
-            c_res["Rashi"] != prev_rashi
-            or c_res["Nakshatra"] != prev_nak
-            or c_res["SubLord"] != prev_sl
-            or c_res["SubSubLord"] != prev_ssl
-            or c_res["SubSubSubLord"] != prev_sssl
-        ):
-          schedule_data.append({
-              "Time": current_dt.strftime("%I:%M %p"),
-              "Rashi": c_res["Rashi"],
-              "Nakshatra & Lord": f"{c_res['Nakshatra']} ({c_res['NakshatraLord']})",
-              "SL": c_res["SubLord"],
-              "SSL": c_res["SubSubLord"],
-              "SSSL": c_res["SubSubSubLord"],
-          })
-          prev_rashi = c_res["Rashi"]
-          prev_nak = c_res["Nakshatra"]
-          prev_sl = c_res["SubLord"]
-          prev_ssl = c_res["SubSubLord"]
-          prev_sssl = c_res["SubSubSubLord"]
-
-      import pandas as pd
-
-      df = pd.DataFrame(schedule_data)
-      st.dataframe(df, use_container_width=True)
-
-  except Exception as e:
-    st.error(f"Somoshya hoyeche: {str(e)}")
-
-
-if __name__ == "__main__":
-  main()
+except Exception as e:
+  st.error(f"Somoshya hoyeche: {str(e)}")
