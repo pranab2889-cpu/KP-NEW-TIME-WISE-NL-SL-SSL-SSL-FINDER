@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 import math
-import streamlit as st
+import streamlit as strlit
 
 try:
   import pysweph as swe
@@ -105,8 +105,7 @@ def get_swiss_moon_longitude(dt, lat, lon):
   flags = swe.FLG_SWIEPH + swe.FLG_SPEED + swe.FLG_SIDEREAL
   swe.set_topo(lon, lat, 0)
 
-  tz_offset = 5.5
-  utc_dt = dt - timedelta(hours=tz_offset)
+  utc_dt = dt - timedelta(hours=5.5)
 
   jd = swe.julday(
       utc_dt.year,
@@ -194,42 +193,43 @@ def calculate_kp_details(moon_lon, moon_daily_speed=13.1768):
   }
 
 
-st.set_page_config(
+strlit.set_page_config(
     page_title="KP Moon Live & Rashi Tracker", page_icon="🌟", layout="wide"
 )
 
-st.title("🌟 KP True Node & New Ayanamsa Tracker 🌟")
+strlit.title("🌟 KP True Node & New Ayanamsa Tracker 🌟")
 
-st.sidebar.header("Location & Time Settings")
+strlit.sidebar.header("Location & Time Settings")
 display_cities = [city.title() for city in LOCATIONS_DB.keys()]
-selected_city = st.sidebar.selectbox("Location Name", display_cities, index=0)
+selected_city = strlit.sidebar.selectbox("Location Name", display_cities, index=0)
 
 default_lat, default_lon = LOCATIONS_DB[selected_city.lower()]
-lat = st.sidebar.number_input("Latitude", value=default_lat, format="%.4f")
-lon_val = st.sidebar.number_input(
+lat = strlit.sidebar.number_input("Latitude", value=default_lat, format="%.4f")
+lon_val = strlit.sidebar.number_input(
     "Longitude", value=default_lon, format="%.4f"
 )
 
-mode = st.sidebar.radio(
+mode = strlit.sidebar.radio(
     "Select Mode", ["Live Now", "Custom Time", "Full Day Schedule"]
 )
 
-target_dt = datetime.now()
+ist_now = datetime.utcnow() + timedelta(hours=5.5)
+
+target_dt = ist_now
 if mode == "Custom Time":
-  d_val = st.sidebar.date_input("Date", datetime.now())
-  t_val = st.sidebar.time_input("Time", datetime.now().time())
+  d_val = strlit.sidebar.date_input("Date", ist_now.date())
+  t_val = strlit.sidebar.time_input("Time", ist_now.time())
   target_dt = datetime.combine(d_val, t_val)
 elif mode == "Full Day Schedule":
-  d_val = st.sidebar.date_input(
-      "Schedule Date", datetime.now(), key="sched_date"
+  d_val = strlit.sidebar.date_input(
+      "Schedule Date", ist_now.date(), key="sched_date"
   )
   target_dt = datetime.combine(d_val, datetime.min.time())
 
 try:
   if mode == "Full Day Schedule":
-    st.subheader(f"Full Day Schedule for {d_val} ({selected_city})")
+    strlit.subheader(f"Full Day Schedule for {d_val} ({selected_city})")
     start_dt = datetime.combine(d_val, datetime.min.time())
-    current_real_time = datetime.now()
 
     transitions_list = []
     prev_rashi, prev_nak, prev_sl, prev_ssl, prev_sssl = "", "", "", "", ""
@@ -259,7 +259,7 @@ try:
 
     for t_dt, res in transitions_list:
       time_str = t_dt.strftime("%I:%M %p")
-      st.markdown(
+      strlit.markdown(
           f"- **{time_str}** | Rashi: `{res['Rashi']}` | Nakshatra:"
           f" `{res['Nakshatra']} ({res['NakshatraLord']})` | SL: `{res['SubLord']}`"
           f" | SSL: `{res['SubSubLord']}` | SSSL: `{res['SubSubSubLord']}`"
@@ -269,21 +269,21 @@ try:
     moon_lon, moon_speed = get_swiss_moon_longitude(target_dt, lat, lon_val)
     res = calculate_kp_details(moon_lon, moon_speed)
 
-    st.markdown("### ⚡ PRESENT RUNNING LORDS ⚡")
-    col1, col2, col3, col4 = st.columns(4)
+    strlit.markdown("### ⚡ PRESENT RUNNING LORDS ⚡")
+    col1, col2, col3, col4 = strlit.columns(4)
     col1.metric("NL", res["NakshatraLord"])
     col2.metric("SL", res["SubLord"])
     col3.metric("SSL", res["SubSubLord"])
     col4.metric("SSSL", res["SubSubSubLord"])
 
-    st.divider()
-    st.write(
-        f"**Target Time:** {target_dt.strftime('%Y-%m-%d %I:%M:%S %p')}"
+    strlit.divider()
+    strlit.write(
+        f"**Target Time (IST):** {target_dt.strftime('%Y-%m-%d %I:%M:%S %p')}"
     )
-    st.write(f"**Moon Longitude:** {res['Longitude']:.4f}°")
-    st.write(f"**Moon Rashi:** {res['Rashi']}")
-    st.write(f"**Nakshatra:** {res['Nakshatra']} ({res['NakshatraLord']})")
-    st.write(f"**Remaining Time in Sub:** {res['RemainingHours']:.2f} hours")
+    strlit.write(f"**Moon Longitude:** {res['Longitude']:.4f}°")
+    strlit.write(f"**Moon Rashi:** {res['Rashi']}")
+    strlit.write(f"**Nakshatra:** {res['Nakshatra']} ({res['NakshatraLord']})")
+    strlit.write(f"**Remaining Time in Sub:** {res['RemainingHours']:.2f} hours")
 
 except Exception as e:
-  st.error(f"Somoshya hoyeche: {str(e)}")
+  strlit.error(f"Somoshya hoyeche: {str(e)}")
